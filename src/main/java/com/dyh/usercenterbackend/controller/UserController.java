@@ -1,5 +1,6 @@
 package com.dyh.usercenterbackend.controller;
 
+import com.dyh.usercenterbackend.constant.UserConstant;
 import com.dyh.usercenterbackend.model.domain.User;
 import com.dyh.usercenterbackend.model.request.UserLoginRequest;
 import com.dyh.usercenterbackend.model.request.UserRegisterRequest;
@@ -43,6 +44,16 @@ public class UserController {
         String userPassword = userLoginRequest.getUserPassword();
         if (StringUtils.isAnyBlank(userAccount, userPassword)) return null;
         return userService.userLogin(userAccount, userPassword, request);
+    }
+    
+    @GetMapping("/current")
+    public User getCurrentUser(HttpServletRequest request) {
+        User currentUser = (User) request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        if (currentUser == null) return null;
+        long userId = currentUser.getId();
+        // TODO: 校验用户是否合法
+        User user = userService.getById(userId);
+        return userService.getSafetyUser(user);
     }
     
     @GetMapping("/search")
