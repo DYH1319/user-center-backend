@@ -39,7 +39,7 @@ public class User {
     private String avatarUrl;
 
     /**
-     * 性别
+     * 性别：0 - 女 1 - 男 2 - 未指定
      */
     @TableField(value = "gender")
     private Byte gender;

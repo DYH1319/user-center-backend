@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.dyh.usercenterbackend.common.StatusCode;
 import com.dyh.usercenterbackend.constant.UserConstant;
 import com.dyh.usercenterbackend.exception.BusinessException;
+import com.dyh.usercenterbackend.model.request.UserSearchRequest;
+import com.dyh.usercenterbackend.utils.DateTimeFormatTransferUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -125,8 +127,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
     
     @Override
+    public User getCurrentUser(HttpServletRequest request) {
+        User currentUser = (User) request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        if (currentUser == null) {
+            throw new BusinessException(StatusCode.NOT_LOGIN, "未登录，请先登录");
+        }
+        long userId = currentUser.getId();
+        User user = this.getById(userId);
+        User safetyUser = this.getSafetyUser(user);
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, safetyUser);
+        return this.getSafetyUser(safetyUser);
+    }
+    
+    @Override
     public User getSafetyUser(User originUser) {
-        if (originUser == null) throw new BusinessException(StatusCode.PARAMS_ERROR);
+        if (originUser == null) throw new BusinessException(StatusCode.PARAMS_ERROR, "用户不存在");
         User safetyUser = new User();
         safetyUser.setId(originUser.getId());
         safetyUser.setUsername(originUser.getUsername());
@@ -142,19 +157,72 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
     
     @Override
-    public List<User> searchUsersByUsername(String username, HttpServletRequest request) {
-        if (!isAdmin(request)) return new ArrayList<>();
+    public List<User> searchUsersByParams(UserSearchRequest searchRequest, HttpServletRequest request) {
+        if (getCurrentUser(request) == null) throw new BusinessException(StatusCode.NOT_LOGIN, "未登录，请先登录");
+        if (!isAdmin(request)) throw new BusinessException(StatusCode.NO_AUTH, "您没有查询用户的权限");
         LambdaQueryWrapper<User> lambdaQueryWrapper = new LambdaQueryWrapper<>();
+        String username = searchRequest.getUsername();
+        String userAccount = searchRequest.getUserAccount();
+        String avatarUrl = searchRequest.getAvatarUrl();
+        Byte gender = searchRequest.getGender();
+        String phone = searchRequest.getPhone();
+        String email = searchRequest.getEmail();
+        Integer userStatus = searchRequest.getUserStatus();
+        Integer userRole = searchRequest.getUserRole();
+        Date startTime = DateTimeFormatTransferUtils.frontDateTime2BackDate(searchRequest.getStartTime());
+        Date endTime = DateTimeFormatTransferUtils.frontDateTime2BackDate(searchRequest.getEndTime());
         if (StringUtils.isNotBlank(username)) {
             lambdaQueryWrapper.like(User::getUsername, username);
+        }
+        if (StringUtils.isNotBlank(userAccount)) {
+            lambdaQueryWrapper.like(User::getUserAccount, userAccount);
+        }
+        if (StringUtils.isNotBlank(avatarUrl)) {
+            lambdaQueryWrapper.like(User::getAvatarUrl, avatarUrl);
+        }
+        if (gender != null) {
+            lambdaQueryWrapper.eq(User::getGender, gender);
+        }
+        if (StringUtils.isNotBlank(phone)) {
+            lambdaQueryWrapper.like(User::getPhone, phone);
+        }
+        if (StringUtils.isNotBlank(email)) {
+            lambdaQueryWrapper.like(User::getEmail, email);
+        }
+        if (userStatus != null) {
+            lambdaQueryWrapper.eq(User::getUserStatus, userStatus);
+        }
+        if (userRole != null) {
+            lambdaQueryWrapper.eq(User::getUserRole, userRole);
+        }
+        if (startTime != null) {
+            lambdaQueryWrapper.ge(User::getCreateTime, startTime);
+        }
+        if (endTime != null) {
+            lambdaQueryWrapper.le(User::getCreateTime, endTime);
         }
         List<User> userList = userMapper.selectList(lambdaQueryWrapper);
         return userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
     }
     
     @Override
+    public boolean updateUserById(User newUser, HttpServletRequest request) {
+        if (getCurrentUser(request) == null) throw new BusinessException(StatusCode.NOT_LOGIN, "未登录，请先登录");
+        if (!isAdmin(request)) throw new BusinessException(StatusCode.NO_AUTH, "您没有修改用户信息的权限");
+        if (newUser == null || newUser.getId() == null || newUser.getId() <= 0) throw new BusinessException(StatusCode.PARAMS_ERROR, "用户或用户id不存在");
+        int count = userMapper.updateById(newUser);
+        if (count == 0) {
+            throw new BusinessException(StatusCode.PARAMS_ERROR, "修改失败，请检查修改的用户id并重试");
+        } else if (count != 1) {
+            throw new BusinessException(StatusCode.SYSTEM_ERROR, "系统内部严重异常，请报告管理员");
+        }
+        return true;
+    }
+    
+    @Override
     public boolean deleteUserById(long id, HttpServletRequest request) {
         if (id <= 0) throw new BusinessException(StatusCode.PARAMS_ERROR, "被删除的id小于等于0");
+        if (getCurrentUser(request) == null) throw new BusinessException(StatusCode.NOT_LOGIN, "未登录，请先登录");
         if (!isAdmin(request)) throw new BusinessException(StatusCode.NO_AUTH, "您没有删除用户的权限");
         return this.removeById(id);
     }

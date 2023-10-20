@@ -2,11 +2,11 @@ package com.dyh.usercenterbackend.controller;
 
 import com.dyh.usercenterbackend.common.BaseResponse;
 import com.dyh.usercenterbackend.common.StatusCode;
-import com.dyh.usercenterbackend.constant.UserConstant;
 import com.dyh.usercenterbackend.exception.BusinessException;
 import com.dyh.usercenterbackend.model.domain.User;
 import com.dyh.usercenterbackend.model.request.UserLoginRequest;
 import com.dyh.usercenterbackend.model.request.UserRegisterRequest;
+import com.dyh.usercenterbackend.model.request.UserSearchRequest;
 import com.dyh.usercenterbackend.service.UserService;
 import com.dyh.usercenterbackend.utils.ResponseUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -75,20 +75,23 @@ public class UserController {
     
     @GetMapping("/current")
     public BaseResponse<User> getCurrentUser(HttpServletRequest request) {
-        User currentUser = (User) request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
-        if (currentUser == null) {
-            throw new BusinessException(StatusCode.NOT_LOGIN, "未登录");
+        if (request == null) {
+            throw new BusinessException(StatusCode.PARAMS_ERROR);
         }
-        long userId = currentUser.getId();
-        User user = userService.getById(userId);
-        User safetyUser = userService.getSafetyUser(user);
+        User safetyUser = userService.getCurrentUser(request);
         return ResponseUtils.success(safetyUser);
     }
     
     @GetMapping("/search")
-    public BaseResponse<List<User>> searchUsersByUsername(String username, HttpServletRequest request) {
-        List<User> userList = userService.searchUsersByUsername(username, request);
+    public BaseResponse<List<User>> searchUsersByParams(UserSearchRequest searchRequest, HttpServletRequest request) {
+        List<User> userList = userService.searchUsersByParams(searchRequest, request);
         return ResponseUtils.success(userList);
+    }
+    
+    @PostMapping("/update")
+    public BaseResponse<Boolean> updateUserById(@RequestBody User newUser, HttpServletRequest request) {
+        boolean updateResult = userService.updateUserById(newUser, request);
+        return ResponseUtils.success(updateResult, "保存成功");
     }
     
     // @DeleteMapping("/")
