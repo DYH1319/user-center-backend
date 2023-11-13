@@ -10,3 +10,10 @@ spring:
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+server:
+  port: 8080
+  ssl:
+    key-alias: user-backend.dyh1319.asia
+    key-store-password: 33jx26cizttp5g2
+    key-store-type: PKCS12
+    key-store: classpath:user-backend.dyh1319.asia.pfx
